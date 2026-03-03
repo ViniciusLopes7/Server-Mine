@@ -11,10 +11,10 @@
 | Java | 21 (OpenJDK) | ✅ Atualizado |
 | Adrenaline | Latest | ✅ Atualizado |
 | Essential Commands | 0.38.6 | ✅ Atualizado |
-| Universal Graves | 3.10.1 | ✅ Atualizado |
-| TabTPS | 1.3.28 | ✅ Atualizado |
+| Universal Graves | 3.10.2 | ✅ Atualizado |
+| TabTPS | 1.3.30 | ✅ Atualizado |
 | Styled Chat | 2.11.0 | ✅ Atualizado |
-| Chunky | 1.4.27 | ✅ Atualizado |
+| Chunky | 1.4.55 | ✅ Atualizado |
 | Tailscale | Latest | ✅ Atualizado |
 
 ---

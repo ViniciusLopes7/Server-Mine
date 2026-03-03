@@ -23,10 +23,10 @@ ADRENALINE_VERSION=""  # Deixe vazio para última versão
 
 # Versões dos mods (atualizadas para 1.21.11)
 ESSENTIAL_COMMANDS_VERSION="0.38.6-mc1.21.11"
-UNIVERSAL_GRAVES_VERSION="3.10.1+1.21.11"
-TABTPS_VERSION="1.3.28"
+UNIVERSAL_GRAVES_VERSION="3.10.2+1.21.11"
+TABTPS_VERSION="1.3.30"
 STYLED_CHAT_VERSION="2.11.0+1.21.11"
-CHUNKY_VERSION="1.4.27"
+CHUNKY_VERSION="1.4.55"
 
 # ============================================
 # FUNÇÕES
@@ -266,7 +266,7 @@ level-type=minecraft:normal
 level-name=world
 
 # Outros
-motd=§aServidor Minecraft §7| §eAdrenaline§7+§6QoL §7| §6Otimizado
+motd=§6§l🏰 REINO DOS CRIAS 🏰\n§eAdrenaline + QoL §7| §aA resenha nunca morre...§r
 pvp=true
 gamemode=survival
 difficulty=normal
@@ -343,19 +343,25 @@ EOF
     cat > "$SERVER_DIR/config/styledchat/config.json" << 'EOF'
 {
   "formats": {
-    "chat": "<dark_gray>[<gray>%server:tabtps_tps%<dark_gray>] <white>%player:displayname% <dark_gray>» <white>${message}",
-    "joined": "<green>+ <white>%player:displayname% <gray>entrou no servidor",
-    "left": "<red>- <white>%player:displayname% <gray>saiu do servidor",
-    "death": "<dark_gray>☠ <white>%player:displayname% <gray>%message%"
+    "chat": "<yellow>[<gray>%server:tabtps_tps%<yellow>] <white>%player:displayname% <gold>» <white>${message}",
+    "joined": "<gold>🔔 O cria <white>%player:displayname% <yellow>chegou no Reino!",
+    "left": "<red>🚪 <white>%player:displayname% <gray>partiu em viagem...",
+    "death": "<dark_red>☠ <white>%player:displayname% <red>pereceu em combate: <gray>%message%"
   }
 }
 EOF
 
-    # Copiar scripts
+    # Copiar scripts e ícone
     cp /tmp/minecraft-server-scripts/start-server.sh "$SERVER_DIR/"
     cp /tmp/minecraft-server-scripts/mc-manager.sh "$SERVER_DIR/"
     cp /tmp/minecraft-server-scripts/backup-cron.sh "$SERVER_DIR/"
     cp /tmp/minecraft-server-scripts/setup-cron.sh "$SERVER_DIR/"
+    
+    # Ícone do servidor (opcional)
+    if [ -f "/tmp/minecraft-server-scripts/server-icon.png" ]; then
+        cp /tmp/minecraft-server-scripts/server-icon.png "$SERVER_DIR/"
+        print_success "Ícone do servidor (server-icon.png) instalado"
+    fi
     
     chmod +x "$SERVER_DIR/start-server.sh"
     chmod +x "$SERVER_DIR/mc-manager.sh"
@@ -580,8 +586,8 @@ if [ ! -f "start-server.sh" ] || [ ! -f "mc-manager.sh" ] || [ ! -f "minecraft.s
     exit 1
 fi
 
-# Copiar scripts para diretório temporário
-cp start-server.sh mc-manager.sh minecraft.service backup-cron.sh setup-cron.sh /tmp/minecraft-server-scripts/ 2>/dev/null || true
+# Copiar scripts e arquivos para diretório temporário
+cp start-server.sh mc-manager.sh minecraft.service backup-cron.sh setup-cron.sh server-icon.png /tmp/minecraft-server-scripts/ 2>/dev/null || true
 
 # Executar instalação
 main
