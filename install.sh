@@ -154,40 +154,30 @@ install_mods_qol() {
     
     print_step "Baixando mods de QoL (versões atualizadas para 1.21.11)..."
     
-    # Chunky - Pré-geração de chunks (ESSENCIAL)
-    print_step "Baixando Chunky v${CHUNKY_VERSION}..."
-    curl -fsSL -o "$SERVER_DIR/mods/chunky.jar" \
-        "https://cdn.modrinth.com/data/fALzjamp/versions/1CpEkmcD/Chunky-Fabric-${CHUNKY_VERSION}.jar" || \
-    curl -fsSL -o "$SERVER_DIR/mods/chunky.jar" \
-        "https://github.com/pop4959/Chunky/releases/download/${CHUNKY_VERSION}/Chunky-${CHUNKY_VERSION}.jar"
+    # Resolvendo links diretos na API do Modrinth para evitar qualquer erro 404
+    print_step "Consultando API do Modrinth para baixar as versões exatas..."
     
-    # Essential Commands - Comandos básicos (/home, /spawn, /tpa, /back)
-    print_step "Baixando Essential Commands v${ESSENTIAL_COMMANDS_VERSION}..."
-    curl -fsSL -o "$SERVER_DIR/mods/essential-commands.jar" \
-        "https://cdn.modrinth.com/data/6VdDUivB/versions/${ESSENTIAL_COMMANDS_VERSION}/essential-commands-${ESSENTIAL_COMMANDS_VERSION}.jar" || \
-    curl -fsSL -o "$SERVER_DIR/mods/essential-commands.jar" \
-        "https://github.com/John-Paul-R/Essential-Commands/releases/download/${ESSENTIAL_COMMANDS_VERSION}/essential-commands-${ESSENTIAL_COMMANDS_VERSION}.jar"
-    
-    # Universal Graves - Sistema de túmulos
-    print_step "Baixando Universal Graves v${UNIVERSAL_GRAVES_VERSION}..."
-    curl -fsSL -o "$SERVER_DIR/mods/universal-graves.jar" \
-        "https://cdn.modrinth.com/data/3i7fqf9n/versions/rZeFZ5ip/graves-${UNIVERSAL_GRAVES_VERSION}.jar" || \
-    curl -fsSL -o "$SERVER_DIR/mods/universal-graves.jar" \
-        "https://github.com/Patbox/UniversalGraves/releases/download/${UNIVERSAL_GRAVES_VERSION}/graves-${UNIVERSAL_GRAVES_VERSION}.jar"
-    
-    # TabTPS - Mostra TPS na lista de jogadores
-    print_step "Baixando TabTPS v${TABTPS_VERSION}..."
-    curl -fsSL -o "$SERVER_DIR/mods/tabtps.jar" \
-        "https://cdn.modrinth.com/data/cUhi3iB2/versions/hTiqRp4H/tabtps-fabric-mc1.21.11-${TABTPS_VERSION}.jar" || \
-    curl -fsSL -o "$SERVER_DIR/mods/tabtps.jar" \
-        "https://github.com/jpenilla/TabTPS/releases/download/v${TABTPS_VERSION}/tabtps-fabric-mc1.21.11-${TABTPS_VERSION}.jar"
-    
-    # Styled Chat - Melhora formatação do chat
-    print_step "Baixando Styled Chat v${STYLED_CHAT_VERSION}..."
-    curl -fsSL -o "$SERVER_DIR/mods/styled-chat.jar" \
-        "https://cdn.modrinth.com/data/doqSKB0e/versions/nW0Cfq7D/styled-chat-${STYLED_CHAT_VERSION}.jar" || \
-    curl -fsSL -o "$SERVER_DIR/mods/styled-chat.jar" \
-        "https://github.com/Patbox/StyledChat/releases/download/${STYLED_CHAT_VERSION}/styled-chat-${STYLED_CHAT_VERSION}.jar"
+    download_mod() {
+        local name=$1
+        local version_id=$2
+        print_step "Baixando $name..."
+        
+        # Pega a URL real a partir da API do Modrinth dinamicamente!
+        local modrinth_url=$(curl -s "https://api.modrinth.com/v2/version/$version_id" | grep -o 'https://cdn.modrinth.com/[^"]*' | head -n 1)
+        
+        if [ -n "$modrinth_url" ]; then
+            curl -fsSL -o "$SERVER_DIR/mods/${name}.jar" "$modrinth_url"
+        else
+            print_warning "A URL da versão $version_id do $name não resolveu."
+        fi
+    }
+
+    # Baixando todos usando os IDs exatos fornecidos
+    download_mod "chunky" "1CpEkmcD"
+    download_mod "essential-commands" "3s9XXmZa"
+    download_mod "universal-graves" "rZeFZ5ip"
+    download_mod "tabtps" "hTiqRp4H"
+    download_mod "styled-chat" "nW0Cfq7D"
     
     # Verificar downloads
     print_step "Verificando downloads..."
