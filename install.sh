@@ -157,7 +157,7 @@ install_mods_qol() {
     # Chunky - Pré-geração de chunks (ESSENCIAL)
     print_step "Baixando Chunky v${CHUNKY_VERSION}..."
     curl -fsSL -o "$SERVER_DIR/mods/chunky.jar" \
-        "https://cdn.modrinth.com/data/fALzjamp/versions/${CHUNKY_VERSION}/chunky-${CHUNKY_VERSION}.jar" || \
+        "https://cdn.modrinth.com/data/fALzjamp/versions/1CpEkmcD/Chunky-Fabric-${CHUNKY_VERSION}.jar" || \
     curl -fsSL -o "$SERVER_DIR/mods/chunky.jar" \
         "https://github.com/pop4959/Chunky/releases/download/${CHUNKY_VERSION}/Chunky-${CHUNKY_VERSION}.jar"
     
