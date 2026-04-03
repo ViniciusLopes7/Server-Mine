@@ -17,6 +17,7 @@ Environment="SCREENDIR=/opt/minecraft-server/.screen"
 # Garante que as pastas necessárias existam e usa o lugar certo pro screen
 ExecStartPre=+/usr/bin/mkdir -p /opt/minecraft-server/.screen
 ExecStartPre=+/usr/bin/chown minecraft:minecraft /opt/minecraft-server/.screen
+ExecStartPre=+/usr/bin/chmod 700 /opt/minecraft-server/.screen
 
 # Comando de inicialização usando screen
 ExecStart=/usr/bin/screen -dmS minecraft /opt/minecraft-server/start-server.sh
