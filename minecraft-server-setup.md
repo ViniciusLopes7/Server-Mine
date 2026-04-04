@@ -314,7 +314,7 @@ sudo tailscale up
 # === CONFIGURAÇÕES DE REDE ===
 server-port=25565
 server-ip=
-online-mode=true
+online-mode=false
 max-players=10
 network-compression-threshold=256
 prevent-proxy-connections=false

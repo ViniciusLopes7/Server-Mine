@@ -242,16 +242,16 @@ cd ~/minecraft-setup
 # 2. Liste os arquivos (devem estar todos aqui)
 ls -la
 # Deve mostrar: install.sh, start-server.sh, mc-manager.sh, etc.
-```
 
-### 2.2 Executar Instalador
+  # 3. Dê permissão de execução aos scripts
+  chmod +x *.sh
+  ```
 
-```bash
-# Execute como root
-sudo bash install.sh
-```
+  ### 2.2 Executar Instalador
 
-**O que o instalador faz:**
+  ```bash
+  # Execute como root
+  sudo ./install.sh
 1. Atualiza o sistema
 2. Instala Java 21, Screen, e ferramentas
 3. Cria usuário "minecraft"
@@ -419,16 +419,18 @@ echo "source /opt/minecraft-server/comandos.sh" >> ~/.bashrc
 # Ou carregue manualmente
 source /opt/minecraft-server/comandos.sh
 
-# Agora use atalhos:
-mcstatus   # Ver status
-mcbackup   # Fazer backup
-mcchunky   # Menu do Chunky
-```
-
-### 4.4 Adicionar Primeiro Operador
-
-```bash
-# Acesse o console
+  # Agora você pode usar todos estes atalhos rápidos:
+  mcstart      # Iniciar o servidor em segundo plano (systemd)
+  mcstop       # Parar o servidor com segurança (avisa os players e salva o mundo)
+  mcrestart    # Reiniciar o servidor
+  mcstatus     # Ver status completo do serviço
+  mclogs       # Ver logs do console pelo systemd (Ctrl+C para sair)
+  mcconsole    # Acessar console interativo (Ctrl+A depois D para sair)
+  mcinfo       # Exibir uso de CPU/RAM e PID
+  mcbackup     # Fazer backup do mundo
+  mcchunky     # Menu interativo para pré-gerar mundo
+  mctps        # Checar o TPS do servidor sem precisar entrar
+  mctailscale  # Ver status da conexão Tailscale
 mcconsole
 
 # No console do Minecraft:

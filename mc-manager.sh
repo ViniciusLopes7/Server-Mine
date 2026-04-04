@@ -116,7 +116,7 @@ stop_server() {
     
     # Aguardar parada
     log "Aguardando parada..."
-    for i in {1..30}; do
+    for i in {1..60}; do
         if ! check_server_running; then
             log "Servidor parado com sucesso!"
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] Servidor parado" >> "$SERVER_DIR/server-manager.log"

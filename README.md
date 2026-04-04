@@ -74,10 +74,11 @@ ls -la
 ### 2. Executar Instalador
 
 ```bash
-sudo bash install.sh
-```
-
-O instalador vai:
+  # Dar permissão de execução aos scripts
+  chmod +x *.sh
+  
+  # Executar instalação principal
+  sudo ./install.sh
 - ✅ Atualizar o sistema
 - ✅ Instalar Java 21, Screen, ferramentas
 - ✅ Criar usuário "minecraft"
