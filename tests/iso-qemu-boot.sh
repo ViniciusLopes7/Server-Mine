@@ -26,12 +26,6 @@ if ! command -v bsdtar >/dev/null 2>&1; then
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PROFILEDEF_FILE="$ROOT_DIR/archiso-profile/profiledef.sh"
-
-if [ ! -f "$PROFILEDEF_FILE" ]; then
-    echo "Arquivo nao encontrado: $PROFILEDEF_FILE" >&2
-    exit 1
-fi
 
 WORK_DIR="$(mktemp -d)"
 LOG_FILE="$WORK_DIR/qemu-boot.log"
@@ -50,25 +44,26 @@ bsdtar -xf "$ISO_FILE" -C "$WORK_DIR" "$kernel_rel" "$initramfs_rel"
 KERNEL_FILE="$WORK_DIR/$kernel_rel"
 INITRAMFS_FILE="$WORK_DIR/$initramfs_rel"
 
-install_dir=""
-iso_label=""
-iso_label_from_iso=""
+install_dir="${kernel_rel%/boot/x86_64/vmlinuz-linux}"
+install_dir="${install_dir#/}"
 
-# Tenta ler label diretamente da ISO (mais fiel ao artefato).
-iso_label_from_iso="$(blkid -o value -s LABEL "$ISO_FILE" 2>/dev/null || true)"
-
-# shellcheck source=/dev/null
-source "$PROFILEDEF_FILE"
-
-if [ -n "$iso_label_from_iso" ]; then
-    iso_label="$iso_label_from_iso"
-fi
-
-if [ -z "${install_dir:-}" ] || [ -z "${iso_label:-}" ]; then
-    echo "Nao foi possivel obter install_dir/iso_label de profiledef.sh" >&2
+if [ -z "$install_dir" ] || [ "$install_dir" = "$kernel_rel" ]; then
+    echo "Nao foi possivel detectar archisobasedir a partir do kernel na ISO." >&2
     exit 1
 fi
 
+if ! command -v blkid >/dev/null 2>&1; then
+    echo "blkid nao encontrado no ambiente." >&2
+    exit 1
+fi
+
+iso_label="$(blkid -o value -s LABEL "$ISO_FILE" 2>/dev/null || true)"
+if [ -z "$iso_label" ]; then
+    echo "Nao foi possivel detectar label da ISO com blkid." >&2
+    exit 1
+fi
+
+echo "[iso-qemu-boot] Usando archisobasedir=${install_dir} archisolabel=${iso_label}"
 echo "[iso-qemu-boot] Boot smoke em QEMU (timeout=${BOOT_TIMEOUT}s)..."
 
 set +e
@@ -77,7 +72,7 @@ timeout "$BOOT_TIMEOUT" qemu-system-x86_64 \
     -cdrom "$ISO_FILE" \
     -kernel "$KERNEL_FILE" \
     -initrd "$INITRAMFS_FILE" \
-    -append "archisobasedir=${install_dir} archisolabel=${iso_label} console=ttyS0,115200 console=tty0" \
+    -append "archisobasedir=${install_dir} archisolabel=${iso_label} console=tty0 console=ttyS0,115200 loglevel=4 rd.systemd.show_status=1 systemd.log_level=info systemd.log_target=console" \
     -nographic \
     -no-reboot \
     -monitor none \
@@ -87,13 +82,13 @@ set -e
 
 cp "$LOG_FILE" "$ROOT_DIR/qemu-boot.log" || true
 
-if grep -Eqi 'Failed to start Switch Root|You are in emergency mode|Cannot open access to console|Kernel panic' "$LOG_FILE"; then
+if grep -Eqi 'Failed to start Switch Root|You are in emergency mode|Cannot open access to console|Kernel panic|Unable to find device with label|Timed out waiting for device' "$LOG_FILE"; then
     echo "Falha de boot detectada no log do QEMU." >&2
     tail -n 120 "$LOG_FILE" >&2
     exit 1
 fi
 
-if ! grep -Eqi 'archiso|Welcome to Arch Linux|root@archiso' "$LOG_FILE"; then
+if ! grep -Eqi 'archiso login:|Welcome to Arch Linux|Reached target .*Multi-User|Reached target .*Login Prompts|root@archiso' "$LOG_FILE"; then
     echo "Sem marcador de boot completo detectado no log do QEMU." >&2
     tail -n 120 "$LOG_FILE" >&2
     exit 1
