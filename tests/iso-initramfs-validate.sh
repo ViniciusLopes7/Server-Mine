@@ -53,7 +53,7 @@ if [ ! -f "$initramfs_file" ] || [ ! -f "$squashfs_file" ]; then
 fi
 
 echo "[iso-initramfs-validate] Validando hooks do initramfs..."
-required_hooks=(archiso base udev block filesystems keyboard)
+required_hooks=(archiso archiso_loop_mnt base udev block filesystems keyboard)
 hook_listing="$WORK_DIR/initramfs-hooks.txt"
 lsinitcpio -a "$initramfs_file" > "$hook_listing"
 
@@ -74,6 +74,6 @@ if [ "$squashfs_bytes" -lt "$min_bytes" ]; then
 fi
 
 echo "[iso-initramfs-validate] Hooks encontrados:"
-grep -E '(^|/)hooks/(archiso|base|udev|block|filesystems|keyboard)$' "$hook_listing" | sort -u
+grep -E '(^|/)hooks/(archiso|archiso_loop_mnt|base|udev|block|filesystems|keyboard)$' "$hook_listing" | sort -u
 
 echo "[iso-initramfs-validate] OK"

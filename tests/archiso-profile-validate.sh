@@ -15,6 +15,7 @@ required_packages=(
     linux
     linux-firmware
     mkinitcpio
+    mkinitcpio-archiso
     syslinux
     grub
     efibootmgr
@@ -51,6 +52,11 @@ fi
 
 if ! echo "$hooks_line" | grep -q "archiso"; then
     echo "Hook archiso ausente em $MKINITCPIO_FILE" >&2
+    exit 1
+fi
+
+if ! echo "$hooks_line" | grep -q "archiso_loop_mnt"; then
+    echo "Hook archiso_loop_mnt ausente em $MKINITCPIO_FILE" >&2
     exit 1
 fi
 

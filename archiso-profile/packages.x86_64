@@ -4,6 +4,7 @@ base
 linux
 linux-firmware
 mkinitcpio
+mkinitcpio-archiso
 syslinux
 grub
 efibootmgr

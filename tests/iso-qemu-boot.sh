@@ -34,6 +34,8 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 kernel_rel="$(bsdtar -tf "$ISO_FILE" | grep -E '.*/boot/x86_64/vmlinuz-linux$' | head -n 1 || true)"
 initramfs_rel="$(bsdtar -tf "$ISO_FILE" | grep -E '.*/boot/x86_64/initramfs-linux\.img$' | head -n 1 || true)"
 squashfs_rel="$(bsdtar -tf "$ISO_FILE" | grep -E '.*/x86_64/airootfs\.sfs$' | head -n 1 || true)"
+syslinux_cfg_rel="$(bsdtar -tf "$ISO_FILE" | grep -E '(^|/)syslinux/(archiso_sys-linux\.cfg|syslinux\.cfg)$' | head -n 1 || true)"
+grub_cfg_rel="$(bsdtar -tf "$ISO_FILE" | grep -E '(^|/)grub/grub\.cfg$' | head -n 1 || true)"
 
 if [ -z "$kernel_rel" ] || [ -z "$initramfs_rel" ] || [ -z "$squashfs_rel" ]; then
     echo "Kernel, initramfs ou squashfs nao encontrados na ISO." >&2
@@ -41,6 +43,14 @@ if [ -z "$kernel_rel" ] || [ -z "$initramfs_rel" ] || [ -z "$squashfs_rel" ]; th
 fi
 
 bsdtar -xf "$ISO_FILE" -C "$WORK_DIR" "$kernel_rel" "$initramfs_rel"
+
+if [ -n "$syslinux_cfg_rel" ]; then
+    bsdtar -xf "$ISO_FILE" -C "$WORK_DIR" "$syslinux_cfg_rel"
+fi
+
+if [ -n "$grub_cfg_rel" ]; then
+    bsdtar -xf "$ISO_FILE" -C "$WORK_DIR" "$grub_cfg_rel"
+fi
 
 KERNEL_FILE="$WORK_DIR/$kernel_rel"
 INITRAMFS_FILE="$WORK_DIR/$initramfs_rel"
@@ -53,38 +63,43 @@ if [ -z "$install_dir" ] || [ "$install_dir" = "$kernel_rel" ]; then
     exit 1
 fi
 
-if ! command -v blkid >/dev/null 2>&1; then
-    echo "blkid nao encontrado no ambiente." >&2
-    exit 1
+cmdline_from_iso=""
+
+if [ -n "$syslinux_cfg_rel" ] && [ -f "$WORK_DIR/$syslinux_cfg_rel" ]; then
+    cmdline_from_iso="$(sed -nE 's/^[[:space:]]*APPEND[[:space:]]+(.+archisobasedir=[^[:space:]]+.*)$/\1/p' "$WORK_DIR/$syslinux_cfg_rel" | head -n 1 || true)"
 fi
 
-iso_uuid="$(blkid -o value -s UUID "$ISO_FILE" 2>/dev/null || true)"
-iso_label="$(blkid -o value -s LABEL "$ISO_FILE" 2>/dev/null || true)"
-
-if [ -z "$iso_uuid" ] && [ -z "$iso_label" ]; then
-    echo "Nao foi possivel detectar UUID/LABEL da ISO com blkid." >&2
-    exit 1
+if [ -z "$cmdline_from_iso" ] && [ -n "$grub_cfg_rel" ] && [ -f "$WORK_DIR/$grub_cfg_rel" ]; then
+    cmdline_from_iso="$(sed -nE 's/^[[:space:]]*linux[[:space:]]+[^[:space:]]+[[:space:]]+(.+archisobasedir=[^[:space:]]+.*)$/\1/p' "$WORK_DIR/$grub_cfg_rel" | head -n 1 || true)"
 fi
 
-img_dev_path=""
-if [ -n "$iso_uuid" ]; then
-    img_dev_path="/dev/disk/by-uuid/${iso_uuid}"
+if echo "$cmdline_from_iso" | grep -q '%ARCHISO_UUID%\|%INSTALL_DIR%\|%ARCH%'; then
+    cmdline_from_iso=""
+fi
+
+qemu_kernel_args=()
+
+if [ -n "$cmdline_from_iso" ]; then
+    # Reaproveita exatamente os parametros resolvidos no bootloader da ISO.
+    qemu_kernel_args+=("$cmdline_from_iso")
 else
-    img_dev_path="/dev/disk/by-label/${iso_label}"
-fi
+    if ! command -v blkid >/dev/null 2>&1; then
+        echo "blkid nao encontrado no ambiente para fallback de parametros." >&2
+        exit 1
+    fi
 
-qemu_kernel_args=(
-    "archisobasedir=${install_dir}"
-    "img_dev=${img_dev_path}"
-    "img_loop=/${squashfs_rel}"
-)
+    iso_label="$(blkid -o value -s LABEL "$ISO_FILE" 2>/dev/null || true)"
+    iso_uuid="$(blkid -o value -s UUID "$ISO_FILE" 2>/dev/null || true)"
 
-if [ -n "$iso_uuid" ]; then
-    qemu_kernel_args+=("archisosearchuuid=${iso_uuid}")
-fi
-
-if [ -n "$iso_label" ]; then
-    qemu_kernel_args+=("archisolabel=${iso_label}")
+    qemu_kernel_args+=("archisobasedir=${install_dir}")
+    if [ -n "$iso_label" ]; then
+        qemu_kernel_args+=("archisolabel=${iso_label}")
+    elif [ -n "$iso_uuid" ]; then
+        qemu_kernel_args+=("archisosearchuuid=${iso_uuid}")
+    else
+        echo "Nao foi possivel detectar LABEL/UUID da ISO para fallback." >&2
+        exit 1
+    fi
 fi
 
 qemu_kernel_args+=(
@@ -98,9 +113,13 @@ qemu_kernel_args+=(
 
 kernel_cmdline="${qemu_kernel_args[*]}"
 
-echo "[iso-qemu-boot] Usando archisobasedir=${install_dir} img_loop=/${squashfs_rel}"
-echo "[iso-qemu-boot] Identificadores: UUID=${iso_uuid:-n/a} LABEL=${iso_label:-n/a}"
-echo "[iso-qemu-boot] img_dev=${img_dev_path}"
+echo "[iso-qemu-boot] Usando archisobasedir=${install_dir}"
+if [ -n "$cmdline_from_iso" ]; then
+    echo "[iso-qemu-boot] Params base extraidos do bootloader da ISO."
+else
+    echo "[iso-qemu-boot] Params base via fallback de LABEL/UUID da ISO."
+fi
+echo "[iso-qemu-boot] Kernel cmdline: $kernel_cmdline"
 echo "[iso-qemu-boot] Boot smoke em QEMU (timeout=${BOOT_TIMEOUT}s)..."
 
 set +e
@@ -119,7 +138,7 @@ set -e
 
 cp "$LOG_FILE" "$ROOT_DIR/qemu-boot.log" || true
 
-if grep -Eqi 'Failed to start Switch Root|You are in emergency mode|dropped into an emergency shell|Cannot open access to console|Kernel panic|Unable to find device with label|Timed out waiting for device' "$LOG_FILE"; then
+if grep -Eqi 'Failed to start Switch Root|You are in emergency mode|dropped into an emergency shell|Failed to mount .* on real root|Cannot open access to console|Kernel panic|Unable to find device with label|Timed out waiting for device' "$LOG_FILE"; then
     echo "Falha de boot detectada no log do QEMU." >&2
     tail -n 120 "$LOG_FILE" >&2
     exit 1
