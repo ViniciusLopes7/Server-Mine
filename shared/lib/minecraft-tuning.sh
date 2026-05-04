@@ -187,7 +187,6 @@ enable-jmx-monitoring=false
 enable-status=true
 
 entity-broadcast-range-percentage=$MC_ENTITY_BROADCAST_RANGE
-max-build-height=256
 spawn-animals=true
 spawn-monsters=true
 spawn-npcs=true

@@ -8,46 +8,8 @@ cd "$ROOT_DIR"
 TMP_TEST_DIR="$(mktemp -d /tmp/crias-ci-dry-install-XXXXXX)"
 trap 'rm -rf "$TMP_TEST_DIR"' EXIT
 
-assert_file() {
-    local path="$1"
-    if [ ! -f "$path" ]; then
-        echo "[arch-dry-install] Arquivo esperado nao encontrado: $path" >&2
-        exit 1
-    fi
-}
-
-assert_executable() {
-    local path="$1"
-    if [ ! -x "$path" ]; then
-        echo "[arch-dry-install] Arquivo esperado nao esta executavel: $path" >&2
-        exit 1
-    fi
-}
-
-assert_grep() {
-    local pattern="$1"
-    local path="$2"
-
-    if ! grep -Eq "$pattern" "$path"; then
-        echo "[arch-dry-install] Padrao nao encontrado em $path: $pattern" >&2
-        exit 1
-    fi
-}
-
-assert_not_grep() {
-    local pattern="$1"
-    local path="$2"
-
-    if grep -Eq "$pattern" "$path"; then
-        echo "[arch-dry-install] Padrao inesperado encontrado em $path: $pattern" >&2
-        exit 1
-    fi
-}
-
-assert_bash_syntax() {
-    local path="$1"
-    bash -n "$path"
-}
+# shellcheck source=/dev/null
+source "$ROOT_DIR/tests/lib/assert.sh"
 
 run_minecraft_dry_install() {
     local server_dir="$TMP_TEST_DIR/minecraft"
@@ -84,8 +46,9 @@ EOF
     assert_file "$server_dir/mc-manager.sh"
     assert_file "$server_dir/backup-cron.sh"
     assert_file "$server_dir/setup-cron.sh"
+    assert_file "$server_dir/.shared/common.sh"
     assert_file "$server_dir/.shared/minecraft-tuning.sh"
-    assert_grep 'screen -S "' "$server_dir/backup-cron.sh"
+    assert_not_grep 'screen -S "' "$server_dir/backup-cron.sh"
     assert_file "$server_dir/minecraft.service.rendered"
     assert_file "$server_dir/comandos.sh"
 
@@ -104,6 +67,8 @@ EOF
     assert_bash_syntax "$server_dir/comandos.sh"
 
     assert_grep 'User=minecraft-ci' "$server_dir/minecraft.service.rendered"
+    assert_grep '^Type=simple$' "$server_dir/minecraft.service.rendered"
+    assert_not_grep 'screen -dmS|SCREENDIR=' "$server_dir/minecraft.service.rendered"
     assert_grep 'MemoryMax=' "$server_dir/minecraft.service.rendered"
     assert_not_grep '__SERVER_USER__|__SERVER_DIR__|__MEMORY_MAX_MB__' "$server_dir/minecraft.service.rendered"
 
@@ -152,8 +117,9 @@ EOF
     assert_file "$server_dir/tt-manager.sh"
     assert_file "$server_dir/backup-cron.sh"
     assert_file "$server_dir/setup-cron.sh"
+    assert_file "$server_dir/.shared/common.sh"
     assert_file "$server_dir/.shared/terraria-tuning.sh"
-    assert_grep 'screen -S "' "$server_dir/backup-cron.sh"
+    assert_not_grep 'screen -S "' "$server_dir/backup-cron.sh"
     assert_file "$server_dir/terraria.service.rendered"
     assert_file "$server_dir/comandos.sh"
 
@@ -172,6 +138,8 @@ EOF
     assert_grep "stat -c '%U'" "$server_dir/tt-manager.sh"
 
     assert_grep 'User=terraria-ci' "$server_dir/terraria.service.rendered"
+    assert_grep '^Type=simple$' "$server_dir/terraria.service.rendered"
+    assert_not_grep 'screen -dmS|SCREENDIR=' "$server_dir/terraria.service.rendered"
     assert_grep 'MemoryMax=' "$server_dir/terraria.service.rendered"
     assert_not_grep '__SERVER_USER__|__SERVER_DIR__|__MEMORY_MAX_MB__' "$server_dir/terraria.service.rendered"
 

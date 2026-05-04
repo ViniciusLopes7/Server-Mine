@@ -95,9 +95,9 @@ Atalhos mais usados:
 - `mcstart`, `mclogs`, `mcconsole`, `mcbackup`, `mcreconfig`
 - `ttstart`, `ttlogs`, `ttconsole`, `ttbackup`, `ttreconfig`
 
-Observacao: os aliases que interagem com o processo do jogo (`mcconsole`, `mcbackup`, `mcreconfig`, `ttconsole`, `ttbackup`, `ttreconfig`) executam o gerenciador de runtime como o `MINECRAFT_USER`/`TERRARIA_USER` automaticamente (usando `sudo -u`). Isso evita problemas quando o nome do usuario do servidor foi alterado.
+Observacao: os comandos do `mc-manager.sh`/`tt-manager.sh` lidam com permissao automaticamente (executando `sudo` quando necessario e rodando backups como o usuario do servidor quando possivel). Isso evita problemas quando o nome do usuario do servidor foi alterado.
 
-`mcstatus`/`ttstatus` agora apresentam um resumo conciso via `mc-manager.sh status` / `tt-manager.sh status` em vez de `systemctl status`, tornando mais facil identificar PID, uso de CPU/RAM e uptime.
+`mcstatus`/`ttstatus` apresentam um resumo via `systemctl status` (e voce pode usar `mclogs`/`ttlogs` para acompanhar logs em tempo real).
 
 ## 5. Backups
 

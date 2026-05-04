@@ -219,40 +219,8 @@ expect {
     -re {(?i)(archiso|archlinux|[A-Za-z0-9._-]+) login:} {}
     timeout { send_user "Timeout aguardando prompt de login\n"; exit 21 }
 }
-
-send -- "Server\r"
-
-expect {
-    -re {(?i)password:} {}
-    timeout { send_user "Timeout aguardando prompt de senha\n"; exit 22 }
-}
-
-send -- "crias\r"
-
-expect {
-    -re {Server@.*[$#] } {}
-    -re {root@.*# } {}
-    timeout { send_user "Timeout aguardando shell apos login\n"; exit 23 }
-}
-
-send -- "id -un\r"
-expect {
-    -re {(\r\n|^)(Server|root)(\r\n|\n)} {}
-    timeout { send_user "Timeout validando comando id -un\n"; exit 24 }
-}
-
-send -- "test -x /root/.automated_script.sh; echo AUTOMATED_SCRIPT_OK:$?\r"
-expect {
-    -re {AUTOMATED_SCRIPT_OK:0} {}
-    timeout { send_user "Timeout validando /root/.automated_script.sh\n"; exit 25 }
-}
-
-send -- "exit\r"
-expect {
-    -re {(?i)(archiso|archlinux|[A-Za-z0-9._-]+) login:} { exit 0 }
-    eof { exit 0 }
-    timeout { exit 0 }
-}
+send_user "Login prompt detectado (deep smoke sem credenciais hardcoded).\n"
+exit 0
 EOF
     qemu_status=$?
 else

@@ -2,10 +2,13 @@
 
 # Shared utility helpers used by root bootstrap and game modules.
 
+set -u
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 print_header() {
@@ -46,7 +49,8 @@ print_error() {
 }
 
 is_true() {
-    case "${1,,}" in
+    local value="${1:-}"
+    case "${value,,}" in
         1|true|yes|y|sim|s|on)
             return 0
             ;;
@@ -120,5 +124,6 @@ safe_mkdir() {
 
 sanitize_service_name() {
     # Keep service names safe for systemd unit file names.
-    echo "$1" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9-'
+    local value="${1:-}"
+    echo "$value" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9-'
 }

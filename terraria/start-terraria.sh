@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -u
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_SERVER_DIR="$SCRIPT_DIR"
 if [ ! -x "$DEFAULT_SERVER_DIR/TerrariaServer.bin.x86_64" ] && [ -x "/opt/terraria-server/TerrariaServer.bin.x86_64" ]; then

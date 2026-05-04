@@ -35,13 +35,12 @@ install_minecraft_dependencies() {
         return 0
     fi
 
-    print_step "Atualizando sistema..."
-    pacman -Syu --noconfirm
+    print_step "Sincronizando repositorios..."
+    pacman -Sy --noconfirm
 
     print_step "Instalando dependencias do Minecraft..."
     pacman -S --needed --noconfirm \
         jdk21-openjdk \
-        screen \
         htop \
         iotop \
         nano \
@@ -250,6 +249,7 @@ deploy_minecraft_scripts() {
     cp "$MODULE_DIR/setup-cron.sh" "$MINECRAFT_SERVER_DIR/setup-cron.sh"
 
     mkdir -p "$MINECRAFT_SERVER_DIR/.shared"
+    cp "$ROOT_DIR/shared/lib/common.sh" "$MINECRAFT_SERVER_DIR/.shared/common.sh"
     cp "$ROOT_DIR/shared/lib/hardware-profile.sh" "$MINECRAFT_SERVER_DIR/.shared/hardware-profile.sh"
     cp "$ROOT_DIR/shared/lib/minecraft-tuning.sh" "$MINECRAFT_SERVER_DIR/.shared/minecraft-tuning.sh"
 
@@ -269,15 +269,16 @@ alias mcstart='sudo systemctl start minecraft'
 alias mcstop='sudo systemctl stop minecraft'
 alias mcrestart='sudo systemctl restart minecraft'
 # Prefer concise status via manager for clarity
-alias mcstatus='sudo -u $MINECRAFT_USER $MINECRAFT_SERVER_DIR/mc-manager.sh status'
+alias mcstatus='sudo $MINECRAFT_SERVER_DIR/mc-manager.sh status'
 alias mclogs='sudo journalctl -u minecraft -f'
 # Run manager commands directly as the server user
-alias mcconsole='sudo -u $MINECRAFT_USER $MINECRAFT_SERVER_DIR/mc-manager.sh console'
-alias mcbackup='sudo -u $MINECRAFT_USER $MINECRAFT_SERVER_DIR/mc-manager.sh backup'
+alias mcconsole='sudo $MINECRAFT_SERVER_DIR/mc-manager.sh console'
+alias mcbackup='sudo $MINECRAFT_SERVER_DIR/mc-manager.sh backup'
+alias mcsetupcron='sudo $MINECRAFT_SERVER_DIR/mc-manager.sh setup-cron'
 alias mcdir='cd $MINECRAFT_SERVER_DIR'
 alias mcprops='sudo nano $MINECRAFT_SERVER_DIR/server.properties'
-alias mchw='sudo -u $MINECRAFT_USER $MINECRAFT_SERVER_DIR/mc-manager.sh hardware-report'
-alias mcreconfig='sudo -u $MINECRAFT_USER $MINECRAFT_SERVER_DIR/mc-manager.sh reconfigure-hardware'
+alias mchw='sudo $MINECRAFT_SERVER_DIR/mc-manager.sh hardware-report'
+alias mcreconfig='sudo $MINECRAFT_SERVER_DIR/mc-manager.sh reconfigure-hardware'
 EOF
 
     chmod +x "$MINECRAFT_SERVER_DIR/comandos.sh"

@@ -32,12 +32,11 @@ install_terraria_dependencies() {
         return 0
     fi
 
-    print_step "Atualizando sistema..."
-    pacman -Syu --noconfirm
+    print_step "Sincronizando repositorios..."
+    pacman -Sy --noconfirm
 
     print_step "Instalando dependencias do Terraria..."
     pacman -S --needed --noconfirm \
-        screen \
         htop \
         iotop \
         nano \
@@ -147,6 +146,7 @@ deploy_terraria_scripts() {
     cp "$MODULE_DIR/setup-cron.sh" "$TERRARIA_SERVER_DIR/setup-cron.sh"
 
     mkdir -p "$TERRARIA_SERVER_DIR/.shared"
+    cp "$ROOT_DIR/shared/lib/common.sh" "$TERRARIA_SERVER_DIR/.shared/common.sh"
     cp "$ROOT_DIR/shared/lib/hardware-profile.sh" "$TERRARIA_SERVER_DIR/.shared/hardware-profile.sh"
     cp "$ROOT_DIR/shared/lib/terraria-tuning.sh" "$TERRARIA_SERVER_DIR/.shared/terraria-tuning.sh"
 
@@ -160,13 +160,14 @@ alias ttstart='sudo systemctl start terraria'
 alias ttstop='sudo systemctl stop terraria'
 alias ttrestart='sudo systemctl restart terraria'
 # Use manager status for concise view
-alias ttstatus='sudo -u $TERRARIA_USER $TERRARIA_SERVER_DIR/tt-manager.sh status'
+alias ttstatus='sudo $TERRARIA_SERVER_DIR/tt-manager.sh status'
 alias ttlogs='sudo journalctl -u terraria -f'
-alias ttconsole='sudo -u $TERRARIA_USER $TERRARIA_SERVER_DIR/tt-manager.sh console'
-alias ttbackup='sudo -u $TERRARIA_USER $TERRARIA_SERVER_DIR/tt-manager.sh backup'
+alias ttconsole='sudo $TERRARIA_SERVER_DIR/tt-manager.sh console'
+alias ttbackup='sudo $TERRARIA_SERVER_DIR/tt-manager.sh backup'
+alias ttsetupcron='sudo $TERRARIA_SERVER_DIR/tt-manager.sh setup-cron'
 alias ttdir='cd $TERRARIA_SERVER_DIR'
-alias tthw='sudo -u $TERRARIA_USER $TERRARIA_SERVER_DIR/tt-manager.sh hardware-report'
-alias ttreconfig='sudo -u $TERRARIA_USER $TERRARIA_SERVER_DIR/tt-manager.sh reconfigure-hardware'
+alias tthw='sudo $TERRARIA_SERVER_DIR/tt-manager.sh hardware-report'
+alias ttreconfig='sudo $TERRARIA_SERVER_DIR/tt-manager.sh reconfigure-hardware'
 EOF
 
     chmod +x "$TERRARIA_SERVER_DIR/comandos.sh"

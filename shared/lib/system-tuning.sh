@@ -2,6 +2,8 @@
 
 # Shared host-level tuning based on detected hardware.
 
+set -u
+
 set_scheduler_if_supported() {
     local device="$1"
     local scheduler="$2"
@@ -67,6 +69,12 @@ apply_cpupower_tuning() {
     fi
 
     if command -v cpupower >/dev/null 2>&1; then
+        local available
+        available="$(cpupower frequency-info -g 2>/dev/null | sed -nE 's/.*available cpufreq governors:[[:space:]]*(.*)$/\1/p' | tr ' ' '\n' | tr -d ',' | tr '\t' '\n' | tr '\n' ' ' || true)"
+        if [ -n "$available" ] && ! echo " $available " | grep -qw " $target_governor "; then
+            # Governor requested is not available on this host/kernel.
+            return 0
+        fi
         cpupower frequency-set -g "$target_governor" >/dev/null 2>&1 || true
     fi
 
@@ -93,6 +101,9 @@ apply_zram_and_sysctl_tuning() {
     local total_ram_mb="$1"
     local zram_size_mb
     local swappiness
+    local zram_conf="/etc/systemd/zram-generator.conf"
+    local sysctl_conf="/etc/sysctl.d/99-server-tuning.conf"
+    local backup_suffix
 
     if [ -z "$total_ram_mb" ] || [ "$total_ram_mb" -le 0 ]; then
         total_ram_mb=4096
@@ -109,7 +120,16 @@ apply_zram_and_sysctl_tuning() {
         swappiness=80
     fi
 
-    cat > /etc/systemd/zram-generator.conf << EOF
+    backup_suffix="$(date +%Y%m%d-%H%M%S 2>/dev/null || true)"
+    if [ -z "$backup_suffix" ]; then
+        backup_suffix="backup"
+    fi
+
+    if [ -f "$zram_conf" ]; then
+        cp -a "$zram_conf" "${zram_conf}.${backup_suffix}.bak" 2>/dev/null || true
+    fi
+
+    cat > "$zram_conf" << EOF
 [zram0]
 zram-size = ${zram_size_mb}M
 compression-algorithm = zstd
@@ -117,7 +137,11 @@ swap-priority = 100
 fs-type = swap
 EOF
 
-    cat > /etc/sysctl.d/99-server-tuning.conf << EOF
+    if [ -f "$sysctl_conf" ]; then
+        cp -a "$sysctl_conf" "${sysctl_conf}.${backup_suffix}.bak" 2>/dev/null || true
+    fi
+
+    cat > "$sysctl_conf" << EOF
 vm.swappiness=${swappiness}
 vm.vfs_cache_pressure=50
 EOF
@@ -132,8 +156,14 @@ apply_common_system_tuning() {
     local tier="$2"
     local total_ram_mb="$3"
 
+    # Scope guard: avoid host-wide changes unless explicitly allowed.
+    # host = apply sysctl/zram/scheduler/cpupower; anything else skips.
+    local scope="${SYSTEM_TUNING_SCOPE:-host}"
+    if [ "$scope" != "host" ]; then
+        return 0
+    fi
+
     apply_zram_and_sysctl_tuning "$total_ram_mb"
     apply_block_device_tuning
     apply_cpupower_tuning "$tier"
-    apply_nofile_limit "$server_user"
 }

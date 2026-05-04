@@ -48,48 +48,55 @@ echo "[iso-live-credentials-validate] Expandindo filesystem live..."
 unsquashfs -no-progress -d "$WORK_DIR/rootfs" "$squashfs_file" >/dev/null
 
 passwd_file="$WORK_DIR/rootfs/etc/passwd"
-shadow_file="$WORK_DIR/rootfs/etc/shadow"
 group_file="$WORK_DIR/rootfs/etc/group"
+shadow_file="$WORK_DIR/rootfs/etc/shadow"
+legacy_customizer="$WORK_DIR/rootfs/root/customize_airootfs.sh"
+automated_script="$WORK_DIR/rootfs/root/.automated_script.sh"
 
-for required_file in "$passwd_file" "$shadow_file" "$group_file"; do
+for required_file in "$passwd_file" "$group_file" "$shadow_file"; do
     if [ ! -f "$required_file" ]; then
         echo "Arquivo essencial ausente no rootfs live: $required_file" >&2
         exit 1
     fi
 done
 
-if ! grep -Eq '^Server:x:[0-9]+:[0-9]+:' "$passwd_file"; then
-    echo "Usuario Server nao encontrado em /etc/passwd da ISO." >&2
+if grep -Eq '^Server:' "$passwd_file"; then
+    echo "Usuario 'Server' nao deveria existir por padrao na ISO (evitar credenciais hardcoded)." >&2
     exit 1
 fi
 
-if ! awk -F: '$1=="wheel" { if ($4 ~ /(^|,)Server(,|$)/) ok=1 } END { exit ok ? 0 : 1 }' "$group_file"; then
-    echo "Usuario Server nao esta no grupo wheel da ISO." >&2
+if awk -F: '$1=="wheel" { if ($4 ~ /(^|,)Server(,|$)/) ok=1 } END { exit ok ? 0 : 1 }' "$group_file"; then
+    echo "Usuario 'Server' nao deveria estar em wheel na ISO." >&2
     exit 1
 fi
 
-validate_password_enabled() {
-    local user_name="$1"
-    local user_hash
+if [ -f "$legacy_customizer" ]; then
+    echo "Script legado de customizacao presente na ISO: /root/customize_airootfs.sh (deveria ser removido)." >&2
+    exit 1
+fi
 
-    user_hash="$(awk -F: -v user="$user_name" '$1==user { print $2 }' "$shadow_file")"
+if [ ! -f "$automated_script" ]; then
+    echo "Script de bootstrap ausente na ISO: /root/.automated_script.sh" >&2
+    exit 1
+fi
 
-    if [ -z "$user_hash" ]; then
-        echo "Usuario $user_name nao encontrado em /etc/shadow da ISO." >&2
-        return 1
-    fi
+if [ ! -x "$automated_script" ]; then
+    echo "Script de bootstrap nao esta executavel na ISO: /root/.automated_script.sh" >&2
+    exit 1
+fi
 
-    case "$user_hash" in
-        '!'|'*'|'!!'|'!*')
-            echo "Senha de $user_name esta bloqueada na ISO." >&2
-            return 1
-            ;;
-    esac
+root_hash="$(awk -F: '$1=="root" { print $2 }' "$shadow_file" || true)"
+if [ -z "$root_hash" ]; then
+    echo "Usuario root nao encontrado em /etc/shadow da ISO." >&2
+    exit 1
+fi
 
-    return 0
-}
-
-validate_password_enabled "Server"
-validate_password_enabled "root"
+case "$root_hash" in
+    '!'|'*'|'!!'|'!*'|'!*'*) ;;
+    *)
+        echo "Senha do root aparenta estar habilitada na ISO (esperado: bloqueada)." >&2
+        exit 1
+        ;;
+esac
 
 echo "[iso-live-credentials-validate] OK"

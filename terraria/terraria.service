@@ -5,18 +5,13 @@ StartLimitIntervalSec=60s
 StartLimitBurst=3
 
 [Service]
-Type=forking
+Type=simple
 User=__SERVER_USER__
 Group=__SERVER_USER__
 WorkingDirectory=__SERVER_DIR__
-Environment="TERM=xterm"
-Environment="SCREENDIR=__SERVER_DIR__/.screen"
-ExecStartPre=+/usr/bin/mkdir -p __SERVER_DIR__/.screen
-ExecStartPre=+/usr/bin/chown __SERVER_USER__:__SERVER_USER__ __SERVER_DIR__/.screen
-ExecStartPre=+/usr/bin/chmod 700 __SERVER_DIR__/.screen
-ExecStart=/usr/bin/screen -dmS terraria __SERVER_DIR__/start-terraria.sh
-ExecStop=__SERVER_DIR__/tt-manager.sh stop
-TimeoutStopSec=60
+ExecStart=__SERVER_DIR__/start-terraria.sh
+KillSignal=SIGINT
+TimeoutStopSec=120
 Restart=on-failure
 RestartSec=15
 LimitNOFILE=65536

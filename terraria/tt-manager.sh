@@ -1,14 +1,34 @@
 #!/bin/bash
+set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+resolve_self() {
+    local src="${BASH_SOURCE[0]}"
+    local resolved=""
+    if command -v readlink >/dev/null 2>&1; then
+        resolved="$(readlink -f "$src" 2>/dev/null || true)"
+    fi
+    if [ -z "$resolved" ] && command -v realpath >/dev/null 2>&1; then
+        resolved="$(realpath "$src" 2>/dev/null || true)"
+    fi
+    if [ -n "$resolved" ]; then
+        echo "$resolved"
+    else
+        echo "$src"
+    fi
+}
+
+SELF="$(resolve_self)"
+SCRIPT_DIR="$(cd "$(dirname "$SELF")" && pwd)"
+
 DEFAULT_SERVER_DIR="$SCRIPT_DIR"
 if [ ! -f "$DEFAULT_SERVER_DIR/config/serverconfig.txt" ] && [ -f "/opt/terraria-server/config/serverconfig.txt" ]; then
     DEFAULT_SERVER_DIR="/opt/terraria-server"
 fi
 
 SERVER_DIR="${SERVER_DIR:-$DEFAULT_SERVER_DIR}"
+SERVICE_NAME="terraria"
 SERVER_USER="${SERVER_USER:-terraria}"
-# If the configured server user does not exist, try to detect the directory owner
+
 if [ -d "$SERVER_DIR" ]; then
     if ! id "$SERVER_USER" >/dev/null 2>&1; then
         detected_owner=$(stat -c '%U' "$SERVER_DIR" 2>/dev/null || true)
@@ -17,49 +37,32 @@ if [ -d "$SERVER_DIR" ]; then
         fi
     fi
 fi
-SCREEN_NAME="terraria"
-START_SCRIPT="$SERVER_DIR/start-terraria.sh"
+
 BACKUP_SCRIPT="$SERVER_DIR/backup-cron.sh"
+SETUP_CRON_SCRIPT="$SERVER_DIR/setup-cron.sh"
 CONFIG_FILE="$SERVER_DIR/config/serverconfig.txt"
 RUNTIME_ENV="$SERVER_DIR/runtime.env"
 TUNING_STATE="$SERVER_DIR/hardware-profile.env"
 SHARED_DIR="$SERVER_DIR/.shared"
-
 HARDWARE_LIB="$SHARED_DIR/hardware-profile.sh"
 TT_TUNING_LIB="$SHARED_DIR/terraria-tuning.sh"
 
-if [ "$(id -nu)" != "$SERVER_USER" ]; then
-    if [ "$(id -u)" -eq 0 ]; then
-        exec sudo -u "$SERVER_USER" "$0" "$@"
-    else
-        echo "[ERRO] Execute com sudo: sudo $0 $*"
-        exit 1
+log() { echo "[INFO] $1"; }
+warn() { echo "[AVISO] $1"; }
+err() { echo "[ERRO] $1" >&2; }
+
+need_root() {
+    if [ "$(id -u)" -ne 0 ]; then
+        exec sudo "$SELF" "$@"
     fi
-fi
-
-if [ -f "$HARDWARE_LIB" ]; then
-    # shellcheck source=/dev/null
-    source "$HARDWARE_LIB"
-fi
-if [ -f "$TT_TUNING_LIB" ]; then
-    # shellcheck source=/dev/null
-    source "$TT_TUNING_LIB"
-fi
-
-log() {
-    echo "[INFO] $1"
 }
 
-warn() {
-    echo "[AVISO] $1"
-}
-
-err() {
-    echo "[ERRO] $1" >&2
-}
-
-check_server_running() {
-    screen -S "$SCREEN_NAME" -Q select . >/dev/null 2>&1
+run_as_server_user() {
+    if [ "$(id -u)" -eq 0 ] && id "$SERVER_USER" >/dev/null 2>&1; then
+        sudo -u "$SERVER_USER" -- "$@"
+    else
+        "$@"
+    fi
 }
 
 get_cfg() {
@@ -78,119 +81,33 @@ get_cfg() {
     echo "$default_value"
 }
 
-start_server() {
-    if check_server_running; then
-        warn "Servidor ja esta rodando."
-        return 1
-    fi
+cmd_start() { need_root "$@"; systemctl start "$SERVICE_NAME"; }
+cmd_stop() { need_root "$@"; systemctl stop "$SERVICE_NAME"; }
+cmd_restart() { need_root "$@"; systemctl restart "$SERVICE_NAME"; }
+cmd_status() { systemctl status "$SERVICE_NAME" --no-pager || true; }
+cmd_logs() { journalctl -u "$SERVICE_NAME" -f; }
+cmd_console() { cmd_logs; }
 
-    if [ ! -x "$START_SCRIPT" ]; then
-        err "Script de inicio nao encontrado: $START_SCRIPT"
-        return 1
-    fi
-
-    mkdir -p "$SERVER_DIR/.screen"
-    screen -dmS "$SCREEN_NAME" "$START_SCRIPT"
-    sleep 2
-
-    if check_server_running; then
-        log "Servidor iniciado."
-        return 0
-    fi
-
-    err "Falha ao iniciar servidor."
-    return 1
-}
-
-stop_server() {
-    if ! check_server_running; then
-        warn "Servidor nao esta rodando."
-        return 1
-    fi
-
-    screen -S "$SCREEN_NAME" -p 0 -X stuff "say [Server] Reiniciando em 5 segundos...\n" >/dev/null 2>&1 || true
-    sleep 5
-    screen -S "$SCREEN_NAME" -p 0 -X stuff "save\n" >/dev/null 2>&1 || true
-    sleep 2
-    screen -S "$SCREEN_NAME" -p 0 -X stuff "exit\n" >/dev/null 2>&1 || true
-
-    for _ in $(seq 1 60); do
-        if ! check_server_running; then
-            log "Servidor parado com sucesso."
-            return 0
-        fi
-        sleep 1
-    done
-
-    warn "Timeout na parada graciosa, forçando encerramento."
-    screen -S "$SCREEN_NAME" -X quit >/dev/null 2>&1 || true
-}
-
-restart_server() {
-    stop_server || true
-    sleep 2
-    start_server
-}
-
-status_server() {
-    if check_server_running; then
-        echo "Status: RODANDO"
-        local pid
-        pid=$(pgrep -f "TerrariaServer.bin.x86_64" | head -n 1)
-        if [ -n "$pid" ]; then
-            echo "PID: $pid"
-            echo "CPU%: $(ps -p "$pid" -o %cpu= | xargs)%"
-            echo "RSS: $(ps -p "$pid" -o rss= | awk '{printf "%.1f MB", $1/1024}')"
-            echo "Uptime: $(ps -p "$pid" -o etime= | xargs)"
-        fi
-    else
-        echo "Status: PARADO"
-    fi
-}
-
-console_server() {
-    if ! check_server_running; then
-        err "Servidor nao esta rodando."
-        return 1
-    fi
-
-    echo "Saida do console: Ctrl+A, depois D"
-    screen -r "$SCREEN_NAME" >/dev/null 2>&1 || true
-}
-
-send_command() {
-    shift
-    local command="$*"
-
-    if [ -z "$command" ]; then
-        err "Uso: $0 cmd <comando>"
-        return 1
-    fi
-
-    if ! check_server_running; then
-        err "Servidor nao esta rodando."
-        return 1
-    fi
-
-    screen -S "$SCREEN_NAME" -p 0 -X stuff "$command\n" >/dev/null 2>&1 || true
-    log "Comando enviado: $command"
-}
-
-run_backup() {
+cmd_backup() {
     if [ ! -x "$BACKUP_SCRIPT" ]; then
         err "Script de backup nao encontrado: $BACKUP_SCRIPT"
         return 1
     fi
-
-    "$BACKUP_SCRIPT"
+    run_as_server_user "$BACKUP_SCRIPT"
 }
 
-reconfigure_hardware() {
-    local forced_tier="${1^^}"
-    local world_path
-    local server_port
-    local motd
-    local world_name
+cmd_setup_cron() {
+    if [ ! -x "$SETUP_CRON_SCRIPT" ]; then
+        err "Script de setup-cron nao encontrado: $SETUP_CRON_SCRIPT"
+        return 1
+    fi
+    need_root "$@"
+    SERVER_USER="$SERVER_USER" "$SETUP_CRON_SCRIPT"
+}
+
+cmd_reconfigure_hardware() {
+    local forced_tier="${1:-}"
+    forced_tier="${forced_tier^^}"
 
     if [ ! -f "$HARDWARE_LIB" ] || [ ! -f "$TT_TUNING_LIB" ]; then
         err "Bibliotecas de tuning nao encontradas em $SHARED_DIR"
@@ -198,39 +115,55 @@ reconfigure_hardware() {
     fi
 
     case "$forced_tier" in
-        ""|LOW|MID|HIGH)
-            ;;
+        ""|LOW|MID|HIGH) ;;
         *)
             err "Tier invalido: $forced_tier (use LOW, MID ou HIGH)"
             return 1
             ;;
     esac
 
-    detect_hardware_profile "$SERVER_DIR" "$forced_tier"
-    compute_terraria_tuning "$HW_TOTAL_RAM_MB" "$HW_CPU_CORES" "$HW_DISK_TYPE" "$HW_TIER"
+    run_as_server_user bash -c '
+        set -euo pipefail
+        SERVER_DIR="$1"
+        forced_tier="$2"
+        CONFIG_FILE="$3"
+        RUNTIME_ENV="$4"
+        TUNING_STATE="$5"
+        HARDWARE_LIB="$6"
+        TT_TUNING_LIB="$7"
 
-    write_terraria_runtime_env "$RUNTIME_ENV"
+        # shellcheck source=/dev/null
+        source "$HARDWARE_LIB"
+        # shellcheck source=/dev/null
+        source "$TT_TUNING_LIB"
 
-    world_path=$(get_cfg "worldpath" "$SERVER_DIR/worlds")
-    server_port=$(get_cfg "port" "7777")
-    motd=$(get_cfg "motd" "Servidor Terraria gerenciado por Crias-Server")
-    world_name=$(get_cfg "worldname" "world")
+        detect_hardware_profile "$SERVER_DIR" "$forced_tier"
+        compute_terraria_tuning "$HW_TOTAL_RAM_MB" "$HW_CPU_CORES" "$HW_DISK_TYPE" "$HW_TIER"
 
-    write_terraria_server_config "$CONFIG_FILE" "$world_path" "$server_port" "$motd" "$world_name"
-    write_terraria_tuning_state "$TUNING_STATE"
+        write_terraria_runtime_env "$RUNTIME_ENV"
 
-    log "Reconfiguracao concluida."
-    echo "Tier detectado: $HW_DETECTED_TIER"
-    echo "Tier aplicado: $HW_TIER"
-    echo "Max players: $TT_MAX_PLAYERS"
-    echo "NPC stream: $TT_NPC_STREAM"
+        world_path=$(grep -E "^worldpath=" "$CONFIG_FILE" | tail -n 1 | cut -d"=" -f2- || true)
+        server_port=$(grep -E "^port=" "$CONFIG_FILE" | tail -n 1 | cut -d"=" -f2- || true)
+        motd=$(grep -E "^motd=" "$CONFIG_FILE" | tail -n 1 | cut -d"=" -f2- || true)
+        world_name=$(grep -E "^worldname=" "$CONFIG_FILE" | tail -n 1 | cut -d"=" -f2- || true)
+        world_path="${world_path:-$SERVER_DIR/worlds}"
+        server_port="${server_port:-7777}"
+        motd="${motd:-Servidor Terraria gerenciado por Crias-Server}"
+        world_name="${world_name:-world}"
 
-    if check_server_running; then
-        warn "Servidor esta rodando. Execute: $0 restart para aplicar as novas configuracoes."
-    fi
+        write_terraria_server_config "$CONFIG_FILE" "$world_path" "$server_port" "$motd" "$world_name"
+        write_terraria_tuning_state "$TUNING_STATE"
+
+        echo "Tier detectado: $HW_DETECTED_TIER"
+        echo "Tier aplicado: $HW_TIER"
+        echo "Max players: $TT_MAX_PLAYERS"
+        echo "NPC stream: $TT_NPC_STREAM"
+    ' bash "$SERVER_DIR" "$forced_tier" "$CONFIG_FILE" "$RUNTIME_ENV" "$TUNING_STATE" "$HARDWARE_LIB" "$TT_TUNING_LIB"
+
+    warn "Reconfiguracao aplicada em arquivos. Reinicie o servico para aplicar no runtime: sudo systemctl restart $SERVICE_NAME"
 }
 
-hardware_report() {
+cmd_hardware_report() {
     if [ -f "$TUNING_STATE" ]; then
         cat "$TUNING_STATE"
     else
@@ -243,35 +176,29 @@ show_help() {
 Uso: $0 <comando>
 
 Comandos:
-  start                   Inicia o servidor
-  stop                    Para o servidor
-  restart                 Reinicia o servidor
-  status                  Mostra status
-  console                 Conecta no console (screen)
-  cmd <texto>             Envia comando para o servidor
-  backup                  Executa backup imediato
-  reconfigure-hardware    Recalcula tuning automaticamente
-  reconfigure-hardware LOW|MID|HIGH  Forca tier especifico
-  hardware-report         Exibe perfil/tuning aplicado
+  start                     Inicia o servico (systemd)
+  stop                      Para o servico (systemd)
+  restart                   Reinicia o servico (systemd)
+  status                    Mostra status (systemd)
+  logs                       Tail dos logs (journalctl)
+  console                    Alias de logs
+  backup                     Executa backup imediato
+  setup-cron                 Configura cron de backup para o usuario do servidor
+  reconfigure-hardware [TIER] Recalcula tuning (TIER: LOW|MID|HIGH ou vazio)
+  hardware-report            Exibe perfil/tuning aplicado
 EOF
 }
 
-case "$1" in
-    start) start_server ;;
-    stop) stop_server ;;
-    restart) restart_server ;;
-    status) status_server ;;
-    console) console_server ;;
-    cmd) send_command "$@" ;;
-    backup) run_backup ;;
-    reconfigure-hardware)
-        reconfigure_hardware "$2"
-        ;;
-    hardware-report)
-        hardware_report
-        ;;
-    *)
-        show_help
-        exit 1
-        ;;
+case "${1:-}" in
+    start) shift; cmd_start "$@" ;;
+    stop) shift; cmd_stop "$@" ;;
+    restart) shift; cmd_restart "$@" ;;
+    status) shift; cmd_status "$@" ;;
+    logs) shift; cmd_logs "$@" ;;
+    console) shift; cmd_console "$@" ;;
+    backup) shift; cmd_backup "$@" ;;
+    setup-cron) shift; cmd_setup_cron "$@" ;;
+    reconfigure-hardware) shift; cmd_reconfigure_hardware "${1:-}" ;;
+    hardware-report) shift; cmd_hardware_report "$@" ;;
+    *) show_help; exit 1 ;;
 esac

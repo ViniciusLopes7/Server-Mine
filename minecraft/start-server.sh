@@ -2,6 +2,8 @@
 
 # Minecraft runtime launcher with dynamic hardware-based runtime.env.
 
+set -u
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_SERVER_DIR="$SCRIPT_DIR"
 if [ ! -f "$DEFAULT_SERVER_DIR/server.jar" ] && [ -f "/opt/minecraft-server/server.jar" ]; then
@@ -68,7 +70,6 @@ JAVA_OPTS="$JAVA_OPTS -Xmx${MAX_RAM}"
 JAVA_OPTS="$JAVA_OPTS -XX:+UseG1GC"
 JAVA_OPTS="$JAVA_OPTS -XX:+ParallelRefProcEnabled"
 JAVA_OPTS="$JAVA_OPTS -XX:MaxGCPauseMillis=${GC_MAX_PAUSE}"
-JAVA_OPTS="$JAVA_OPTS -XX:+UnlockExperimentalVMOptions"
 JAVA_OPTS="$JAVA_OPTS -XX:+DisableExplicitGC"
 JAVA_OPTS="$JAVA_OPTS -XX:G1HeapRegionSize=${G1_REGION_SIZE}"
 JAVA_OPTS="$JAVA_OPTS -XX:G1NewSizePercent=30"
@@ -85,7 +86,6 @@ JAVA_OPTS="$JAVA_OPTS -XX:+UseStringDeduplication"
 JAVA_OPTS="$JAVA_OPTS -XX:+PerfDisableSharedMem"
 JAVA_OPTS="$JAVA_OPTS -Djava.net.preferIPv4Stack=true"
 JAVA_OPTS="$JAVA_OPTS -Dfabric.log.disable-ansi=true"
-JAVA_OPTS="$JAVA_OPTS -Dlog4j2.formatMsgNoLookups=true"
 
 cd "$SERVER_DIR" || exit 1
 

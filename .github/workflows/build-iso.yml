@@ -26,13 +26,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Run Shellcheck
-        uses: ludeeus/action-shellcheck@master
+        uses: ludeeus/action-shellcheck@2.0.0
         with:
           scandir: './'
 
+  static_audit:
+    name: Static Audit
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Run static audit
+        run: bash tests/static-audit.sh
+
   quick_script_tests:
     name: Quick Script Tests
-    needs: lint
+    needs: [lint, static_audit]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

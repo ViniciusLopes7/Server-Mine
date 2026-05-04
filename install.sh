@@ -13,6 +13,7 @@ OVERRIDABLE_VARS=(
     FORCE_HARDWARE_TIER
     INSTALL_TAILSCALE
     APPLY_SYSTEM_TUNING
+    SYSTEM_TUNING_SCOPE
     CLEANUP_OTHER_STACK
     DRY_RUN
     NON_INTERACTIVE
@@ -26,12 +27,14 @@ OVERRIDABLE_VARS=(
     MINECRAFT_INSTALL_MODPACK
     MINECRAFT_ADRENALINE_VERSION
     MINECRAFT_INSTALL_QOL_MODS
+    MRPACK_SHA256
     TERRARIA_USER
     TERRARIA_SERVER_DIR
     TERRARIA_PORT
     TERRARIA_WORLD_NAME
     TERRARIA_MOTD
     TERRARIA_DOWNLOAD_URL
+    TERRARIA_SHA256
 )
 
 capture_env_overrides() {
@@ -74,6 +77,7 @@ SERVER_TYPE="${SERVER_TYPE:-}"
 FORCE_HARDWARE_TIER="${FORCE_HARDWARE_TIER:-}"
 INSTALL_TAILSCALE="${INSTALL_TAILSCALE:-true}"
 APPLY_SYSTEM_TUNING="${APPLY_SYSTEM_TUNING:-true}"
+SYSTEM_TUNING_SCOPE="${SYSTEM_TUNING_SCOPE:-host}"
 CLEANUP_OTHER_STACK="${CLEANUP_OTHER_STACK:-true}"
 DRY_RUN="${DRY_RUN:-false}"
 NON_INTERACTIVE="${NON_INTERACTIVE:-false}"
@@ -98,8 +102,41 @@ TERRARIA_DOWNLOAD_URL="${TERRARIA_DOWNLOAD_URL:-https://terraria.org/api/downloa
 
 load_config_file() {
     if [ -f "$CONFIG_FILE" ]; then
-        # shellcheck source=/dev/null
-        source "$CONFIG_FILE"
+        # Parse config.env as a simple KEY=VALUE file (no code execution).
+        local line
+        local key
+        local value
+
+        while IFS= read -r line || [ -n "$line" ]; do
+            # Strip leading/trailing whitespace
+            line="${line#"${line%%[![:space:]]*}"}"
+            line="${line%"${line##*[![:space:]]}"}"
+
+            # Skip comments/blank lines
+            if [ -z "$line" ] || [[ "$line" == \#* ]]; then
+                continue
+            fi
+
+            if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+                key="${BASH_REMATCH[1]}"
+                value="${BASH_REMATCH[2]}"
+
+                # Trim whitespace around value
+                value="${value#"${value%%[![:space:]]*}"}"
+                value="${value%"${value##*[![:space:]]}"}"
+
+                # Strip surrounding quotes (keep backslash sequences literal).
+                if [[ "$value" =~ ^\"(.*)\"$ ]]; then
+                    value="${BASH_REMATCH[1]}"
+                elif [[ "$value" =~ ^\'(.*)\'$ ]]; then
+                    value="${BASH_REMATCH[1]}"
+                fi
+
+                printf -v "$key" '%s' "$value"
+            else
+                print_warning "Linha ignorada em config.env (formato invalido): $line"
+            fi
+        done < "$CONFIG_FILE"
     fi
 }
 
@@ -359,10 +396,16 @@ run_selected_stack_installer() {
         export MINECRAFT_SERVER_DIR
         export MINECRAFT_PORT
         export MINECRAFT_ONLINE_MODE
-    export MINECRAFT_MOTD
+        export MINECRAFT_MOTD
+        export MINECRAFT_VERSION
+        export MINECRAFT_LOADER
+        export MINECRAFT_INSTALL_MODPACK
+        export MINECRAFT_ADRENALINE_VERSION
         export MINECRAFT_INSTALL_QOL_MODS
+        export MRPACK_SHA256
         export FORCE_HARDWARE_TIER
         export APPLY_SYSTEM_TUNING
+        export SYSTEM_TUNING_SCOPE
         export DRY_RUN
         export NON_INTERACTIVE
 
@@ -376,8 +419,10 @@ run_selected_stack_installer() {
     export TERRARIA_WORLD_NAME
     export TERRARIA_MOTD
     export TERRARIA_DOWNLOAD_URL
+    export TERRARIA_SHA256
     export FORCE_HARDWARE_TIER
     export APPLY_SYSTEM_TUNING
+    export SYSTEM_TUNING_SCOPE
     export DRY_RUN
     export NON_INTERACTIVE
 

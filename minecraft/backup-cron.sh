@@ -9,7 +9,6 @@ fi
 SERVER_DIR="${SERVER_DIR:-$DEFAULT_SERVER_DIR}"
 BACKUP_DIR="$SERVER_DIR/backups"
 WORLD_DIRS=("world" "world_nether" "world_the_end")
-SCREEN_NAME="minecraft"
 RUNTIME_ENV="$SERVER_DIR/runtime.env"
 
 RETENTION_DAYS=7
@@ -42,38 +41,6 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
-check_server_running() {
-    screen -S "${SCREEN_NAME}" -Q select . >/dev/null 2>&1
-}
-
-escape_screen_message() {
-    printf '%s' "$1" | sed 's/[\\]/\\\\/g; s/"/\\"/g'
-}
-
-notify_players() {
-    local message="$1"
-    if check_server_running; then
-        screen -S "$SCREEN_NAME" -p 0 -X stuff "say $(escape_screen_message "$message")\n" >/dev/null 2>&1 || true
-    fi
-}
-
-pause_saves() {
-    if ! check_server_running; then
-        return 0
-    fi
-
-    screen -S "$SCREEN_NAME" -p 0 -X stuff "save-all\n" >/dev/null 2>&1 || true
-    sleep 3
-    screen -S "$SCREEN_NAME" -p 0 -X stuff "save-off\n" >/dev/null 2>&1 || true
-    sleep 2
-}
-
-resume_saves() {
-    if check_server_running; then
-        screen -S "$SCREEN_NAME" -p 0 -X stuff "save-on\n" >/dev/null 2>&1 || true
-    fi
-}
-
 create_backup() {
     local backup_dirs=()
 
@@ -91,6 +58,11 @@ create_backup() {
         return 1
     fi
 
+    if ! command -v zstd >/dev/null 2>&1; then
+        log "ERRO: zstd nao encontrado no PATH. Instale (pacman -S zstd) ou ajuste o PATH do cron."
+        return 1
+    fi
+
     if ionice -c3 tar -I "zstd ${ZSTD_LEVEL}" -cf "$BACKUP_DIR/$BACKUP_NAME" "${backup_dirs[@]}"; then
         log "Backup criado: $BACKUP_DIR/$BACKUP_NAME"
         return 0
@@ -105,30 +77,17 @@ cleanup_old_backups() {
 }
 
 main() {
-    local was_running=false
-
     if [ ! -d "$SERVER_DIR" ]; then
         log "ERRO: Diretorio do servidor nao encontrado: $SERVER_DIR"
         exit 1
     fi
 
-    if check_server_running; then
-        was_running=true
-        notify_players "[Backup] Iniciando backup automatico..."
-        pause_saves
-    fi
-
     if create_backup; then
         cleanup_old_backups
-        [ "$was_running" = true ] && notify_players "[Backup] Backup concluido com sucesso."
         log "Backup concluido com sucesso."
     else
-        [ "$was_running" = true ] && notify_players "[Backup] Falha no backup."
-        [ "$was_running" = true ] && resume_saves
         exit 1
     fi
-
-    [ "$was_running" = true ] && resume_saves
 }
 
 main

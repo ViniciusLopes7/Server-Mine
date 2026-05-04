@@ -11,7 +11,6 @@ BACKUP_DIR="$SERVER_DIR/backups"
 WORLDS_DIR="$SERVER_DIR/worlds"
 CONFIG_DIR="$SERVER_DIR/config"
 RUNTIME_ENV="$SERVER_DIR/runtime.env"
-SCREEN_NAME="terraria"
 
 RETENTION_DAYS=7
 ZSTD_LEVEL="-3"
@@ -43,28 +42,6 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
-check_server_running() {
-    screen -S "$SCREEN_NAME" -Q select . >/dev/null 2>&1
-}
-
-escape_screen_message() {
-    printf '%s' "$1" | sed 's/[\\]/\\\\/g; s/"/\\"/g'
-}
-
-notify_server() {
-    local message="$1"
-    if check_server_running; then
-        screen -S "$SCREEN_NAME" -p 0 -X stuff "say $(escape_screen_message "$message")\n" >/dev/null 2>&1 || true
-    fi
-}
-
-trigger_save() {
-    if check_server_running; then
-        screen -S "$SCREEN_NAME" -p 0 -X stuff "save\n" >/dev/null 2>&1 || true
-        sleep 3
-    fi
-}
-
 create_backup() {
     mkdir -p "$BACKUP_DIR"
 
@@ -74,6 +51,11 @@ create_backup() {
     fi
 
     cd "$SERVER_DIR" || return 1
+
+    if ! command -v zstd >/dev/null 2>&1; then
+        log "ERRO: zstd nao encontrado no PATH. Instale (pacman -S zstd) ou ajuste o PATH do cron."
+        return 1
+    fi
 
     if ionice -c3 tar -I "zstd ${ZSTD_LEVEL}" -cf "$BACKUP_DIR/$BACKUP_NAME" "$(basename "$WORLDS_DIR")" "$(basename "$CONFIG_DIR")"; then
         log "Backup criado: $BACKUP_DIR/$BACKUP_NAME"
@@ -89,15 +71,10 @@ cleanup_old_backups() {
 }
 
 main() {
-    notify_server "[Backup] Iniciando backup automatico..."
-    trigger_save
-
     if create_backup; then
         cleanup_old_backups
-        notify_server "[Backup] Backup concluido com sucesso."
         log "Backup concluido com sucesso."
     else
-        notify_server "[Backup] Falha no backup."
         exit 1
     fi
 }

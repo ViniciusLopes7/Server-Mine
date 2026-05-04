@@ -7,6 +7,12 @@ clamp_value() {
     local min="$2"
     local max="$3"
 
+    # Ensure numeric
+    if ! [[ "$value" =~ ^-?[0-9]+$ ]]; then
+        echo "$min"
+        return 0
+    fi
+
     if [ "$value" -lt "$min" ]; then
         echo "$min"
         return 0
@@ -27,6 +33,16 @@ compute_terraria_tuning() {
     local tier="$4"
 
     local memory_max_mb
+
+    # Normalize numeric inputs to avoid "integer expected" errors in comparisons
+    total_ram_mb="${total_ram_mb:-0}"
+    cpu_cores="${cpu_cores:-0}"
+    if ! [[ "$total_ram_mb" =~ ^[0-9]+$ ]]; then
+        total_ram_mb=0
+    fi
+    if ! [[ "$cpu_cores" =~ ^[0-9]+$ ]]; then
+        cpu_cores=0
+    fi
 
     case "$tier" in
         LOW)

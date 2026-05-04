@@ -8,6 +8,9 @@ cd "$ROOT_DIR"
 TMP_TEST_DIR="$(mktemp -d /tmp/crias-ci-install-contracts-XXXXXX)"
 trap 'rm -rf "$TMP_TEST_DIR"' EXIT
 
+# shellcheck source=/dev/null
+source "$ROOT_DIR/tests/lib/assert.sh"
+
 assert_expected_failure() {
     local config_file="$1"
     local log_file="$2"

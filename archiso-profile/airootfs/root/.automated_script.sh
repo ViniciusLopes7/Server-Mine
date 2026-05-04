@@ -5,6 +5,25 @@
 # Esse script pode ser disparado quando o root loga no USB bootável
 # ============================================
 
+wait_for_network() {
+    # On Arch live ISO, NetworkManager may take a moment to become active.
+    if command -v systemctl >/dev/null 2>&1; then
+        echo "Aguardando NetworkManager..."
+        local i
+        for i in $(seq 1 20); do
+            if systemctl is-active --quiet NetworkManager; then
+                break
+            fi
+            sleep 1
+        done
+    fi
+
+    # If nm-online exists, let it do the connectivity readiness check.
+    if command -v nm-online >/dev/null 2>&1; then
+        nm-online -q -t 20 >/dev/null 2>&1 || true
+    fi
+}
+
 echo "=========================================="
 echo "  BEM-VINDO AO INSTALADOR DE GAME SERVER"
 echo "=========================================="
@@ -30,7 +49,8 @@ if [ -d "Server-Mine" ]; then
 fi
 
 echo "Verificando conectividade com github.com..."
-if ! ping -n 1 github.com >/dev/null 2>&1; then
+wait_for_network
+if ! ping -c 1 -W 2 github.com >/dev/null 2>&1; then
     echo "Internet nao detectada. Conecte a rede e execute o instalador manualmente." >&2
     exit 1
 fi
